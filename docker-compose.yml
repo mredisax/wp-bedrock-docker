@@ -1,0 +1,65 @@
+version: "3.9"
+services:
+  app: 
+    build: 
+      context: ./.docker/app
+    depends_on:
+      - db
+      # - composer
+    volumes:
+      - ./app:/var/www/html
+    links:
+      - db
+    environment:
+      - WP_HOME=http://$PROJECT_NAME.docker
+      - WP_SITEURL=http://$PROJECT_NAME.docker/wp
+    env_file:
+      - ./.env.dev
+
+  db:
+    image: mariadb:10.6
+    env_file:
+      ./.db_env.dev
+  
+  composer:
+    image: composer
+    volumes:
+      - ./app:/app
+
+  web:
+    build:
+      context: ./.docker/web
+    volumes_from:
+      - app
+    depends_on:
+      - app
+    links:
+      - app
+    environment:
+      - VIRTUAL_HOST=$PROJECT_NAME.docker
+      - VIRTUAL_PORT=80
+    ports:
+      - "80:80"
+    command: /bin/sh -c "envsubst '$$VIRTUAL_HOST' < /etc/nginx/site.conf.template > /etc/nginx/site.conf && nginx -g 'daemon off;'"
+
+  mail:
+    image: mailhog/mailhog
+    environment:
+      - VIRTUAL_PORT=8025
+      - VIRTUAL_HOST=mail.$PROJECT_NAME.docker
+  
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    depends_on:
+      - db
+    links:
+      - db
+    environment:
+      - VIRTUAL_PORT=80
+      - VIRTUAL_HOST=phpmyadmin.$PROJECT_NAME.docker
+      - PMA_ABSOLUTE_URI=http://phpmyadmin.$PROJECT_NAME.docker/
+      - PMA_ARBITRARY=1
+      - PMA_HOST=db
+      - PMA_PORT=3306
+      - PMA_USER=wp
+      - PMA_PASSWORD=password
